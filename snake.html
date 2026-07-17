@@ -38,13 +38,24 @@
   #score {
     font-size: 18px;
   }
+  #game-area {
+    display: grid;
+    grid-template-columns: 52px clamp(160px, calc(100vw - 190px), 380px) 52px;
+    grid-template-rows: 52px clamp(160px, calc(100vw - 190px), 380px) 52px;
+    gap: 8px;
+    align-items: center;
+    justify-items: center;
+  }
   canvas {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1 / 1;
     background: #1f2937;
     border: 2px solid #4b5563;
     border-radius: 8px;
     image-rendering: pixelated;
-    width: min(400px, 92vw);
-    height: min(400px, 92vw);
     touch-action: none;
     cursor: pointer;
   }
@@ -56,39 +67,56 @@
   #hint .mobile-only {
     display: none;
   }
-  #dpad {
-    display: none;
-    grid-template-columns: repeat(3, 56px);
-    grid-template-rows: repeat(3, 56px);
-    gap: 6px;
-    touch-action: none;
-  }
-  #dpad button {
-    grid-column: auto;
+  #game-area button {
+    width: 100%;
+    height: 100%;
     border: none;
     border-radius: 10px;
-    background: #1f2937;
-    border: 2px solid #4b5563;
-    color: #e5e7eb;
-    font-size: 22px;
+    background: #22c55e;
+    border: 2px solid #16a34a;
+    color: #052e16;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
     touch-action: none;
+    cursor: pointer;
   }
-  #dpad button:active {
-    background: #374151;
+  #game-area button:hover {
+    background: #4ade80;
+  }
+  #game-area button:active {
+    background: #16a34a;
   }
   #btn-up { grid-column: 2; grid-row: 1; }
   #btn-left { grid-column: 1; grid-row: 2; }
-  #btn-pause { grid-column: 2; grid-row: 2; font-size: 18px; }
   #btn-right { grid-column: 3; grid-row: 2; }
   #btn-down { grid-column: 2; grid-row: 3; }
+
+  #btn-pause {
+    border: none;
+    border-radius: 8px;
+    background: #f59e0b;
+    border: 2px solid #d97706;
+    color: #451a03;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 18px;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+    cursor: pointer;
+  }
+  #btn-pause:hover {
+    background: #fbbf24;
+  }
+  #btn-pause:active {
+    background: #d97706;
+  }
 
   @media (hover: none) and (pointer: coarse) {
     #hint .desktop-only { display: none; }
     #hint .mobile-only { display: inline; }
-    #dpad { display: grid; }
   }
 
   #overlay {
@@ -122,18 +150,20 @@
 <body>
   <h1>🐍 貪食蛇</h1>
   <div id="score">分數：0　最高分：0</div>
-  <canvas id="game" width="400" height="400"></canvas>
-  <div id="hint">
-    <span class="desktop-only">方向鍵 / WASD 移動　｜　空白鍵 暫停　｜　也可點擊畫面上下左右轉向</span>
-    <span class="mobile-only">點擊畫面上下左右或滑動轉向，也可用下方按鈕</span>
-  </div>
 
-  <div id="dpad">
+  <div id="game-area">
     <button id="btn-up" aria-label="上">▲</button>
     <button id="btn-left" aria-label="左">◀</button>
-    <button id="btn-pause" aria-label="暫停">⏸</button>
+    <canvas id="game" width="400" height="400"></canvas>
     <button id="btn-right" aria-label="右">▶</button>
     <button id="btn-down" aria-label="下">▼</button>
+  </div>
+
+  <button id="btn-pause" aria-label="暫停">⏸ 暫停</button>
+
+  <div id="hint">
+    <span class="desktop-only">方向鍵 / WASD 移動　｜　空白鍵 暫停　｜　也可點擊畫面或按鈕轉向</span>
+    <span class="mobile-only">點擊畫面、滑動、或按四周的按鈕轉向</span>
   </div>
 
   <div id="overlay">
