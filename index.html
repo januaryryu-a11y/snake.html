@@ -2,22 +2,34 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>貪食蛇</title>
 <style>
   :root {
     color-scheme: dark;
   }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html, body {
+    overscroll-behavior: none;
+  }
   body {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 12px;
+    padding: 12px;
     background: #111827;
     font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
     color: #e5e7eb;
+    touch-action: none;
+    user-select: none;
   }
   h1 {
     margin: 0;
@@ -31,11 +43,53 @@
     border: 2px solid #4b5563;
     border-radius: 8px;
     image-rendering: pixelated;
+    width: min(400px, 92vw);
+    height: min(400px, 92vw);
+    touch-action: none;
   }
   #hint {
     font-size: 13px;
     color: #9ca3af;
+    text-align: center;
   }
+  #hint .mobile-only {
+    display: none;
+  }
+  #dpad {
+    display: none;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 56px);
+    gap: 6px;
+    touch-action: none;
+  }
+  #dpad button {
+    grid-column: auto;
+    border: none;
+    border-radius: 10px;
+    background: #1f2937;
+    border: 2px solid #4b5563;
+    color: #e5e7eb;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+  #dpad button:active {
+    background: #374151;
+  }
+  #btn-up { grid-column: 2; grid-row: 1; }
+  #btn-left { grid-column: 1; grid-row: 2; }
+  #btn-pause { grid-column: 2; grid-row: 2; font-size: 18px; }
+  #btn-right { grid-column: 3; grid-row: 2; }
+  #btn-down { grid-column: 2; grid-row: 3; }
+
+  @media (hover: none) and (pointer: coarse) {
+    #hint .desktop-only { display: none; }
+    #hint .mobile-only { display: inline; }
+    #dpad { display: grid; }
+  }
+
   #overlay {
     position: fixed;
     inset: 0;
@@ -68,7 +122,18 @@
   <h1>🐍 貪食蛇</h1>
   <div id="score">分數：0　最高分：0</div>
   <canvas id="game" width="400" height="400"></canvas>
-  <div id="hint">方向鍵 / WASD 移動　｜　空白鍵 暫停</div>
+  <div id="hint">
+    <span class="desktop-only">方向鍵 / WASD 移動　｜　空白鍵 暫停</span>
+    <span class="mobile-only">滑動畫面或用下方按鈕操作</span>
+  </div>
+
+  <div id="dpad">
+    <button id="btn-up" aria-label="上">▲</button>
+    <button id="btn-left" aria-label="左">◀</button>
+    <button id="btn-pause" aria-label="暫停">⏸</button>
+    <button id="btn-right" aria-label="右">▶</button>
+    <button id="btn-down" aria-label="下">▼</button>
+  </div>
 
   <div id="overlay">
     <div id="overlayText" style="font-size:22px;">遊戲結束</div>
@@ -83,6 +148,11 @@
   const overlay = document.getElementById('overlay');
   const overlayText = document.getElementById('overlayText');
   const restartBtn = document.getElementById('restartBtn');
+  const btnUp = document.getElementById('btn-up');
+  const btnDown = document.getElementById('btn-down');
+  const btnLeft = document.getElementById('btn-left');
+  const btnRight = document.getElementById('btn-right');
+  const btnPause = document.getElementById('btn-pause');
 
   const GRID = 20;
   const COLS = canvas.width / GRID;
@@ -191,6 +261,10 @@
     nextDir = { x, y };
   }
 
+  function togglePause() {
+    if (running) paused = !paused;
+  }
+
   window.addEventListener('keydown', (e) => {
     switch (e.key) {
       case 'ArrowUp': case 'w': case 'W': setDir(0, -1); break;
@@ -198,12 +272,48 @@
       case 'ArrowLeft': case 'a': case 'A': setDir(-1, 0); break;
       case 'ArrowRight': case 'd': case 'D': setDir(1, 0); break;
       case ' ':
-        if (running) paused = !paused;
+        togglePause();
         break;
     }
   });
 
   restartBtn.addEventListener('click', init);
+
+  // 螢幕方向鍵（手機）
+  function bindTap(el, handler) {
+    el.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handler();
+    }, { passive: false });
+    el.addEventListener('click', handler);
+  }
+  bindTap(btnUp, () => setDir(0, -1));
+  bindTap(btnDown, () => setDir(0, 1));
+  bindTap(btnLeft, () => setDir(-1, 0));
+  bindTap(btnRight, () => setDir(1, 0));
+  bindTap(btnPause, togglePause);
+
+  // 手指滑動操作
+  let touchStartX = 0, touchStartY = 0;
+  const SWIPE_THRESHOLD = 24;
+
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      setDir(dx > 0 ? 1 : -1, 0);
+    } else {
+      setDir(0, dy > 0 ? 1 : -1);
+    }
+  }, { passive: true });
 
   init();
 })();
