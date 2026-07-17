@@ -46,6 +46,7 @@
     width: min(400px, 92vw);
     height: min(400px, 92vw);
     touch-action: none;
+    cursor: pointer;
   }
   #hint {
     font-size: 13px;
@@ -123,8 +124,8 @@
   <div id="score">分數：0　最高分：0</div>
   <canvas id="game" width="400" height="400"></canvas>
   <div id="hint">
-    <span class="desktop-only">方向鍵 / WASD 移動　｜　空白鍵 暫停</span>
-    <span class="mobile-only">滑動畫面或用下方按鈕操作</span>
+    <span class="desktop-only">方向鍵 / WASD 移動　｜　空白鍵 暫停　｜　也可點擊畫面上下左右轉向</span>
+    <span class="mobile-only">點擊畫面上下左右或滑動轉向，也可用下方按鈕</span>
   </div>
 
   <div id="dpad">
@@ -157,11 +158,37 @@
   const GRID = 20;
   const COLS = canvas.width / GRID;
   const ROWS = canvas.height / GRID;
-  const TICK_MS = 110;
+  const TICK_MS = 210;
+
+  // 果實種類：普通 / 變色 / 加長
+  const FOOD_TYPES = [
+    { type: 'normal', weight: 20, color: '#ef4444', radius: GRID / 2 - 2 },
+    { type: 'color', weight: 50, color: '#a855f7', radius: GRID / 2 - 2 },
+    { type: 'grow', weight: 30, color: '#f59e0b', radius: GRID / 2 - 1 }
+  ];
+  const SNAKE_COLORS = [
+    { head: '#4ade80', body: '#22c55e' },
+    { head: '#60a5fa', body: '#3b82f6' },
+    { head: '#fbbf24', body: '#f59e0b' },
+    { head: '#f472b6', body: '#ec4899' },
+    { head: '#a78bfa', body: '#8b5cf6' },
+    { head: '#22d3ee', body: '#06b6d4' }
+  ];
 
   let snake, dir, nextDir, food, score, best, running, paused, timer;
+  let colorIdx, growthPending;
 
   best = Number(localStorage.getItem('snake_best') || 0);
+
+  function pickFoodType() {
+    const total = FOOD_TYPES.reduce((sum, f) => sum + f.weight, 0);
+    let r = Math.random() * total;
+    for (const f of FOOD_TYPES) {
+      if (r < f.weight) return f;
+      r -= f.weight;
+    }
+    return FOOD_TYPES[0];
+  }
 
   function randomFood() {
     while (true) {
@@ -169,7 +196,9 @@
         x: Math.floor(Math.random() * COLS),
         y: Math.floor(Math.random() * ROWS)
       };
-      if (!snake.some(s => s.x === pos.x && s.y === pos.y)) return pos;
+      if (!snake.some(s => s.x === pos.x && s.y === pos.y)) {
+        return { ...pos, ...pickFoodType() };
+      }
     }
   }
 
@@ -184,6 +213,8 @@
     score = 0;
     paused = false;
     running = true;
+    colorIdx = 0;
+    growthPending = 0;
     food = randomFood();
     overlay.classList.remove('show');
     updateScore();
@@ -214,12 +245,20 @@
 
     if (head.x === food.x && head.y === food.y) {
       score++;
+      if (food.type === 'color') {
+        colorIdx = (colorIdx + 1 + Math.floor(Math.random() * (SNAKE_COLORS.length - 1))) % SNAKE_COLORS.length;
+      } else if (food.type === 'grow') {
+        score++;
+        growthPending += 3;
+      }
       if (score > best) {
         best = score;
         localStorage.setItem('snake_best', best);
       }
       updateScore();
       food = randomFood();
+    } else if (growthPending > 0) {
+      growthPending--;
     } else {
       snake.pop();
     }
@@ -239,18 +278,24 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 食物
-    ctx.fillStyle = '#ef4444';
+    ctx.fillStyle = food.color;
     ctx.beginPath();
     ctx.arc(
       food.x * GRID + GRID / 2,
       food.y * GRID + GRID / 2,
-      GRID / 2 - 2, 0, Math.PI * 2
+      food.radius, 0, Math.PI * 2
     );
     ctx.fill();
+    if (food.type !== 'normal') {
+      ctx.strokeStyle = '#f9fafb';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
 
     // 蛇
+    const palette = SNAKE_COLORS[colorIdx];
     snake.forEach((s, i) => {
-      ctx.fillStyle = i === 0 ? '#4ade80' : '#22c55e';
+      ctx.fillStyle = i === 0 ? palette.head : palette.body;
       ctx.fillRect(s.x * GRID + 1, s.y * GRID + 1, GRID - 2, GRID - 2);
     });
   }
@@ -293,7 +338,19 @@
   bindTap(btnRight, () => setDir(1, 0));
   bindTap(btnPause, togglePause);
 
-  // 手指滑動操作
+  // 點擊畫面上下左右轉向：以畫面中心為基準，點在哪一側就往哪個方向走
+  function setDirFromPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left - rect.width / 2;
+    const y = clientY - rect.top - rect.height / 2;
+    if (Math.abs(x) > Math.abs(y)) {
+      setDir(x > 0 ? 1 : -1, 0);
+    } else {
+      setDir(0, y > 0 ? 1 : -1);
+    }
+  }
+
+  // 手指滑動 / 點擊操作
   let touchStartX = 0, touchStartY = 0;
   const SWIPE_THRESHOLD = 24;
 
@@ -304,16 +361,24 @@
   }, { passive: true });
 
   canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
     const t = e.changedTouches[0];
     const dx = t.clientX - touchStartX;
     const dy = t.clientY - touchStartY;
-    if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
-    if (Math.abs(dx) > Math.abs(dy)) {
+    if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+      // 移動距離很小，視為點擊：依點擊位置判斷方向
+      setDirFromPoint(t.clientX, t.clientY);
+    } else if (Math.abs(dx) > Math.abs(dy)) {
       setDir(dx > 0 ? 1 : -1, 0);
     } else {
       setDir(0, dy > 0 ? 1 : -1);
     }
-  }, { passive: true });
+  }, { passive: false });
+
+  // 滑鼠點擊（桌面）
+  canvas.addEventListener('click', (e) => {
+    setDirFromPoint(e.clientX, e.clientY);
+  });
 
   init();
 })();
